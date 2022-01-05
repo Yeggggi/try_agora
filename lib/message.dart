@@ -122,10 +122,10 @@ class _MessageScreenState extends State<MessageScreen> {
                       itemBuilder: (context, i) {
                         return ListTile(
                           contentPadding: const EdgeInsets.all(0.0),
-                          title: Text(log![i]),
+                          // title: Text(log[i]),
                         );
                       },
-                      itemCount: log?.length,
+                      // itemCount: log?.length,
                     ),
                   ),
                 );

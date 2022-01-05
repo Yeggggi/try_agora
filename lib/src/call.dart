@@ -4,14 +4,13 @@ import 'package:agora_rtc_engine/rtc_engine.dart';
 import 'package:agora_rtc_engine/rtc_local_view.dart' as RtcLocalView;
 import 'package:agora_rtc_engine/rtc_remote_view.dart' as RtcRemoteView;
 import 'package:flutter/material.dart';
-import 'settings.dart';
-//pp
-// const Token = '006535e37690e2d4e91b539fabd9b3d8686IAAQedm8x7o9+N6DWoAJlHAYbjvwC4zJjtg++VPbg2K7518eCZAAAAAAEADQ943gNUnNYQEAAQA1Sc1h';
+
+
+import './settings.dart';
 
 class CallPage extends StatefulWidget {
   /// non-modifiable channel name of the page
   final String? channelName;
-  // final String username;
 
   /// non-modifiable client role of the page
   final ClientRole? role;
@@ -28,6 +27,29 @@ class _CallPageState extends State<CallPage> {
   final _infoStrings = <String>[];
   bool muted = false;
   late RtcEngine _engine;
+
+
+  String baseUrl = ''; //Add the link to your deployed server here
+  int uid = 0;
+  late String token;
+/*
+  Future<void> getToken() async {
+    final response = await http.get(
+      Uri.parse(baseUrl + '/rtc/' + widget.channelName + '/publisher/uid/' + uid.toString()
+        // To add expiry time uncomment the below given line with the time in seconds
+        // + '?expiry=45'
+      ),
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        token = response.body;
+        token = jsonDecode(token)['rtcToken'];
+      });
+    } else {
+      print('Failed to fetch the token');
+    }
+  }*/
 
   @override
   void dispose() {
@@ -63,20 +85,23 @@ class _CallPageState extends State<CallPage> {
     // VideoEncoderConfiguration configuration = VideoEncoderConfiguration();
     // configuration.dimensions = VideoDimensions(width: 1920, height: 1080);
     // await _engine.setVideoEncoderConfiguration(configuration);
+    // await getToken();
     await _engine.joinChannel(Token, widget.channelName!, null, 0);
+
   }
 
   /// Create agora sdk instance and initialize
   Future<void> _initAgoraRtcEngine() async {
     _engine = await RtcEngine.create(APP_ID);
-    await _engine.enableAudio();
-    await _engine.setChannelProfile(ChannelProfile.Communication);
+    await _engine.enableVideo();
+    await _engine.setChannelProfile(ChannelProfile.LiveBroadcasting);
     await _engine.setClientRole(widget.role!);
   }
 
   /// Add agora event handlers
   void _addAgoraEventHandlers() {
     _engine.setEventHandler(RtcEngineEventHandler(error: (code) {
+
       setState(() {
         final info = 'onError: $code';
         _infoStrings.add(info);
@@ -103,14 +128,16 @@ class _CallPageState extends State<CallPage> {
         _infoStrings.add(info);
         _users.remove(uid);
       });
-    },
-      firstRemoteVideoFrame: (uid, width, height, elapsed) {
-        setState(() {
-          final info = 'firstRemoteVideoFrame: $uid';
-          _infoStrings.add(info);
-        });
-      },
-    ));
+    }, firstRemoteVideoFrame: (uid, width, height, elapsed) {
+      setState(() {
+        final info = 'firstRemoteVideo: $uid ${width}x $height';
+        _infoStrings.add(info);
+      });
+    }));
+    // tokenPrivilegeWillExpire: (token) async {
+    //   await getToken();
+    //   await _engine.renewToken(token);
+    // };
   }
 
   /// Helper function to get list of native views
@@ -178,7 +205,7 @@ class _CallPageState extends State<CallPage> {
 
   /// Toolbar layout
   Widget _toolbar() {
-    //if (widget.role == ClientRole.Audience) return Container();
+    if (widget.role == ClientRole.Audience) return Container();
     return Container(
       alignment: Alignment.bottomCenter,
       padding: const EdgeInsets.symmetric(vertical: 48),
@@ -295,13 +322,13 @@ class _CallPageState extends State<CallPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Agora Flutter'),
+        title: Text('Agora Flutter QuickStart'),
       ),
       backgroundColor: Colors.black,
       body: Center(
         child: Stack(
           children: <Widget>[
-            // _viewRows(),
+            _viewRows(),
             _panel(),
             _toolbar(),
           ],

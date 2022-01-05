@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/rtc_local_view.dart' as RtcLocalView;
 import 'package:agora_rtc_engine/rtc_remote_view.dart' as RtcRemoteView;
 
+
+
 class CallPage extends StatefulWidget {
   final String channelName;
   final String username;
@@ -56,7 +58,7 @@ class _CallPageState extends State<CallPage> {
     }
     await _initAgoraRtcEngine();
     _addAgoraEventHandlers();
-    await _engine.joinChannel(null, widget.channelName, null, 0);
+    await _engine.joinChannel(Token, widget.channelName, null, 0);
   }
 
   /// Create agora sdk instance and initialize

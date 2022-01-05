@@ -159,6 +159,8 @@ class _LobbyPageState extends State<LobbyPage> {
     print('List of channels : $_channelList');
   }
 
+
+
   void _createClient() async {
     _client = await AgoraRtmClient.createInstance(appID);
     _client.onConnectionStateChanged = (int state, int reason) {
@@ -182,18 +184,19 @@ class _LobbyPageState extends State<LobbyPage> {
       print('Client message received : ${message.text}');
 
       var data = message.text.split(':');
-      // if (_channelList.keys.contains(data[0])) {
-      //   setState(() {
-      //     _channelList.update(data[0], (v) => int.parse(data[1]));
-      //   });
-      // } else {
-      //   setState(() {
-      //     _channelList.putIfAbsent(data[0], () => int.parse(data[1]));
-      //   });
-      // }
-      setState(() {
-        _channelList.putIfAbsent(data[0], () => int.parse(data[1]));
-      });
+      if (_channelList.keys.contains(data[0])) {
+        setState(() {
+          _channelList.update(data[0], (v) => int.parse(data[1]));
+        });
+      } else {
+        setState(() {
+          _channelList.putIfAbsent(data[0], () => int.parse(data[1]));
+        });
+      }
+      // setState(() {
+      //   // _channelList.putIfAbsent(data[0], () => int.parse(data[1]));
+      //
+      // });
     };
 
     _channel = (await _createChannel("lobby"))!;
@@ -319,7 +322,7 @@ class _LobbyPageState extends State<LobbyPage> {
     _channel.sendMessage(AgoraRtmMessage.fromText(
         '$channelName' + ':' + '$numberOfPeopleInThisChannel'));
 
-    if (numberOfPeopleInThisChannel >= 2 && numberOfPeopleInThisChannel < 5) {
+    if (numberOfPeopleInThisChannel >= 1 && numberOfPeopleInThisChannel < 5) {
       await _handleCameraAndMic(Permission.camera);
       await _handleCameraAndMic(Permission.microphone);
       await _subchannel.leave();
