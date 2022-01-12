@@ -1,5 +1,7 @@
-const appID = '3e480481e7314c9eb6b6aa133967b4d0';
-const APP_ID = '3e480481e7314c9eb6b6aa133967b4d0';
+const appID = '535e37690e2d4e91b539fabd9b3d8686';
+const APP_ID = '535e37690e2d4e91b539fabd9b3d8686';
 const Token =
-    '0063e480481e7314c9eb6b6aa133967b4d0IAD0UD6jGeyJ5//3kxi5QZZo/psMCxRRnXNyn4CihxOjjYf9D4cAAAAAEAB/8F67JK7WYQEAAQAkrtZh';
-// const channelName = 'Hamzzi';
+  '006535e37690e2d4e91b539fabd9b3d8686IADgdC7rmK/WOxwZ7heIVFFvuK5zjV0p0iyYyQXcEJbPuYf9D4cAAAAAEACBVNzpUAveYQEAAQBQC95h';
+const channelName = 'Hamzzi';
+
+

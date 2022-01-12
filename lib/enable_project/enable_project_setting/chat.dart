@@ -2,16 +2,27 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:agora_rtc_engine/rtc_engine.dart';
+import 'package:agora_rtc_engine/rtc_local_view.dart' as RtcLocalView;
+import 'package:agora_rtc_engine/rtc_remote_view.dart' as RtcRemoteView;
+import 'package:permission_handler/permission_handler.dart';
 
 import 'login.dart';
 import 'colors.dart';
+import 'settings.dart';
 
 bool isEdit = false;
 TextEditingController _editingController =TextEditingController(text: initialText);
 String initialText = "";
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({Key? key}) : super(key: key);
+  /// non-modifiable channel name of the page
+  // final String? channelName;
+
+  /// non-modifiable client role of the page
+  final ClientRole? role;
+
+  const ChatPage({Key? key, this.role}) : super(key: key);
 
   @override
   _ChatPageState createState() => _ChatPageState();
@@ -23,6 +34,17 @@ class _ChatPageState extends State<ChatPage> {
   final _formKey = GlobalKey<FormState>(debugLabel: '_GuestBookState');
   final _controller = TextEditingController();
   Color _floatingbuttonColor = TextWeak;
+  bool muted = false;
+  late RtcEngine _engine;
+  int _remoteUid = 0;
+  bool _joined = false;
+  final _infoStrings = <String>[];
+
+  @override
+  void initState() {
+    super.initState();
+    initPlatformState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +59,8 @@ class _ChatPageState extends State<ChatPage> {
           icon: new Icon(Icons.arrow_back_ios_new_rounded),
           color: OnBackground,
           onPressed: () {
-            Navigator.pushNamed(context, '/wait',);
+            Navigator.of(context).pop();
+            // Navigator.pushNamed(context, '/wait',);
           },
         ),
         title: const Text('대화방',
@@ -70,24 +93,26 @@ class _ChatPageState extends State<ChatPage> {
                 //toggle ? Icons.mic : Icons.mic_none,
                 //color: toggle ? _floatingbuttonColor : Primary,
               ),
-              onPressed: () {
-                setState(() {
-                  toggle = !toggle;
-                  if(_floatingbuttonColor == Secondary){
-                    _floatingbuttonColor = TextWeak;
-                  }
-                  else {
-                    _floatingbuttonColor = Secondary;
-                  }
-                  //backgroundColor = Background;
-                });
-              },
+              onPressed: _onToggleMute,
+              // onPressed: () {
+              //   setState(() {
+              //     toggle = !toggle;
+              //     if(_floatingbuttonColor == Secondary){
+              //       _floatingbuttonColor = TextWeak;
+              //     }
+              //     else {
+              //       _floatingbuttonColor = Secondary;
+              //     }
+              //     //backgroundColor = Background;
+              //   });
+              // },
             ),
           ]
       ),
       body: Column(children: <Widget>[
         const SizedBox(height: 10),
         //Image.asset('assets/chat.png'),
+
         const SizedBox(height: 10),
         /*FloatingActionButton(
           onPressed: () {
@@ -329,4 +354,97 @@ class _ChatPageState extends State<ChatPage> {
     });
     // Navigator.pop(context);
   }
+
+  void _onToggleMute() {
+    setState(() {
+      muted = !muted;
+      if(_floatingbuttonColor == Secondary){
+        _floatingbuttonColor = TextWeak;
+      }
+      else {
+        _floatingbuttonColor = Secondary;
+      }
+    });
+    _engine.muteLocalAudioStream(muted);
+  }
+
+  Future<void> initPlatformState() async {
+    // Get microphone permission
+    await [Permission.microphone].request();
+
+    // Create RTC client instance
+    RtcEngineContext context = RtcEngineContext(APP_ID);
+    var engine = await RtcEngine.createWithContext(context);
+    // Define event handling logic
+    engine.setEventHandler(RtcEngineEventHandler(
+        joinChannelSuccess: (String channel, int uid, int elapsed) {
+          print('joinChannelSuccess ${channel} ${uid}');
+          setState(() {
+            _joined = true;
+          });
+        }, userJoined: (int uid, int elapsed) {
+      print('userJoined ${uid}');
+      setState(() {
+        _remoteUid = uid;
+      });
+    }, userOffline: (int uid, UserOfflineReason reason) {
+      print('userOffline ${uid}');
+      setState(() {
+        _remoteUid = 0;
+      });
+    }));
+    // Join channel with channel name as
+    await engine.joinChannel(Token, channelName, null, 0);
+  }
+
+  /// Info panel to show logs
+  Widget _panel() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      alignment: Alignment.bottomCenter,
+      child: FractionallySizedBox(
+        heightFactor: 0.5,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 48),
+          child: ListView.builder(
+            reverse: true,
+            itemCount: _infoStrings.length,
+            itemBuilder: (BuildContext context, int index) {
+              if (_infoStrings.isEmpty) {
+                return Text("null");  // return type can't be null, a widget was required
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 3,
+                  horizontal: 10,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 2,
+                          horizontal: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.yellowAccent,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          _infoStrings[index],
+                          style: TextStyle(color: Colors.blueGrey),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
 }
