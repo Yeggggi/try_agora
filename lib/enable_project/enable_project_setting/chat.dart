@@ -38,12 +38,64 @@ class _ChatPageState extends State<ChatPage> {
   late RtcEngine _engine;
   int _remoteUid = 0;
   bool _joined = false;
+  final _users = <int>[];
   final _infoStrings = <String>[];
+  int? streamId;
+
+  @override
+  void dispose() {
+    // clear users
+    _users.clear();
+    // destroy sdk
+    _engine.leaveChannel();
+    _engine.destroy();
+    super.dispose();
+  }
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   initPlatformState().whenComplete((){
+  //       setState(() {});
+  //     });
+  //   // initPlatformState();
+  // }
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
+    // initialize agora sdk
+    initialize();
+  }
+
+  Future<void> initialize() async {
+    if (APP_ID.isEmpty) {
+      setState(() {
+        _infoStrings.add(
+          'APP_ID missing, please provide your APP_ID in settings.dart',
+        );
+        _infoStrings.add('Agora Engine is not starting');
+      });
+      return;
+    }
+
+
+    await _initAgoraRtcEngine();
+    streamId = await _engine.createDataStream(true, true);
+    _addAgoraEventHandlers();
+    await _engine.enableWebSdkInteroperability(true);
+    VideoEncoderConfiguration configuration = VideoEncoderConfiguration();
+    //configuration.dimensions = VideoDimensions(1920, 1080);
+    await _engine.setVideoEncoderConfiguration(configuration);
+    // await _engine.joinChannel(null, channelName, null, 0);
+  }
+
+  Future<void> _initAgoraRtcEngine() async {
+    _engine = await RtcEngine.create(APP_ID);
+    await _engine.enableAudio();
+    await _engine.setChannelProfile(ChannelProfile.LiveBroadcasting);
+    //만약에 1to1으로 만들려면 LiveBroadcasting이거 대신에 Communication으로 넣으면 일대일이 가능해짐
+    await _engine.setClientRole(ClientRole.Broadcaster);
   }
 
   @override
@@ -112,7 +164,7 @@ class _ChatPageState extends State<ChatPage> {
       body: Column(children: <Widget>[
         const SizedBox(height: 10),
         //Image.asset('assets/chat.png'),
-
+        _buildAvatar(),
         const SizedBox(height: 10),
         /*FloatingActionButton(
           onPressed: () {
@@ -355,6 +407,33 @@ class _ChatPageState extends State<ChatPage> {
     // Navigator.pop(context);
   }
 
+  Widget _buildAvatar(){
+
+    return Container(
+      width: 58,
+      child: PopupMenuButton(
+        icon: CircleAvatar(
+          backgroundImage: NetworkImage(
+              "https://4.bp.blogspot.com/-Jx21kNqFSTU/UXemtqPhZCI/AAAAAAAAh74/BMGSzpU6F48/s1600/funny-cat-pictures-047-001.jpg"
+          ),
+          backgroundColor: Colors.red,
+        ),
+        itemBuilder: (BuildContext context) {
+          return [
+            PopupMenuItem<String> (
+              value: '1',
+              child: Text('1'),
+            ),
+            PopupMenuItem<String> (
+              value: '2',
+              child: Text('2'),
+            ),
+          ];
+        },
+      ),
+    );
+  }
+
   void _onToggleMute() {
     setState(() {
       muted = !muted;
@@ -368,34 +447,92 @@ class _ChatPageState extends State<ChatPage> {
     _engine.muteLocalAudioStream(muted);
   }
 
-  Future<void> initPlatformState() async {
-    // Get microphone permission
-    await [Permission.microphone].request();
 
-    // Create RTC client instance
-    RtcEngineContext context = RtcEngineContext(APP_ID);
-    var engine = await RtcEngine.createWithContext(context);
-    // Define event handling logic
-    engine.setEventHandler(RtcEngineEventHandler(
-        joinChannelSuccess: (String channel, int uid, int elapsed) {
-          print('joinChannelSuccess ${channel} ${uid}');
-          setState(() {
-            _joined = true;
-          });
-        }, userJoined: (int uid, int elapsed) {
-      print('userJoined ${uid}');
-      setState(() {
-        _remoteUid = uid;
-      });
-    }, userOffline: (int uid, UserOfflineReason reason) {
-      print('userOffline ${uid}');
-      setState(() {
-        _remoteUid = 0;
-      });
-    }));
-    // Join channel with channel name as
-    await engine.joinChannel(Token, channelName, null, 0);
+
+  /// Add agora event handlers
+  void _addAgoraEventHandlers() {
+    _engine.setEventHandler(RtcEngineEventHandler(
+      error: (code) {
+        setState(() {
+          final info = 'onError: $code';
+          _infoStrings.add(info);
+        });
+      },
+      joinChannelSuccess: (channel, uid, elapsed) {
+        setState(() {
+          final info = 'onJoinChannel: $channel, uid: $uid';
+          _infoStrings.add(info);
+        });
+      },
+      leaveChannel: (stats) {
+        setState(() {
+          _infoStrings.add('onLeaveChannel');
+          _users.clear();
+        });
+      },
+      userJoined: (uid, elapsed) {
+        setState(() {
+          final info = 'userJoined: $uid';
+          _infoStrings.add(info);
+          _users.add(uid);
+        });
+      },
+      userOffline: (uid, elapsed) {
+        setState(() {
+          final info = 'userOffline: $uid';
+          _infoStrings.add(info);
+          _users.remove(uid);
+        });
+      },
+      firstRemoteVideoFrame: (uid, width, height, elapsed) {
+        setState(() {
+          final info = 'firstRemoteVideo: $uid ${width}x $height';
+          _infoStrings.add(info);
+        });
+      },
+
+        //final String coordinate = "$message";
+        // late String first;
+        // late String second;
+        // late double d1;
+        // late double d2;
+        // if (coordinates.compareTo('erase') == 0) {
+        //   setState(() {
+        //     drawingPoints = [];
+        //     drawingPoints.add(drawingPoints[-1]);
+        //   });
+        // } else {
+        //   first = coordinates.substring(0, coordinates.indexOf(' '));
+        //   second = coordinates.substring(
+        //       coordinates.indexOf(' '), coordinates.indexOf('a'));
+        //   d1 = double.parse(first);
+        //   d2 = double.parse(second);
+        //   change = Offset(d1 * MediaQuery.of(context).size.width,
+        //       d2 * MediaQuery.of(context).size.height);
+        //   setState(() {
+        //     drawingPoints.add(
+        //       DrawingPoint(
+        //         change,
+        //         Paint()
+        //           ..color = selectedColor
+        //           ..isAntiAlias = true
+        //           ..strokeWidth = strokeWidth
+        //           ..strokeCap = StrokeCap.round,
+        //       ),
+        //     );
+        //   });
+        // }
+
+        // print(info);
+        // _infoStrings.add(info);
+      // },
+      streamMessageError: (_, __, error, ___, ____) {
+        final String info = "here is the error $error";
+        print(info);
+      },
+    ));
   }
+
 
   /// Info panel to show logs
   Widget _panel() {
