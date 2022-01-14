@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'chat.dart';
 import 'colors.dart';
+import 'login.dart';
 
 bool isEdit = false;
 String initialText = "";
@@ -22,7 +23,7 @@ bool toggle = false;
 
 class _WaitPageState extends State<WaitPage> {
   /// create a channelController to retrieve text value
-  final _channelController = TextEditingController();
+  late String _channelController;
   bool _isChannelCreated = true;
   /// if channel textField is validated to have error
   bool _validateError = false;
@@ -102,22 +103,25 @@ class _WaitPageState extends State<WaitPage> {
       );
   }
   Future<void> onJoin() async {
+    _channelController = uid;
+    print("Uid(ChannelName): ${_channelController}");
     // update input validation
     setState(() {
-      _channelController.text.isEmpty
+      _channelController.isEmpty
           ? _validateError = true
           : _validateError = false;
     });
-    // if (_channelController.text.isNotEmpty) {
+    // if (_channelController.isNotEmpty) {
       // await for camera and mic permissions before pushing video page
       // await _handleCameraAndMic(Permission.camera);
       await _handleCameraAndMic(Permission.microphone);
+      await _handleCameraAndMic(Permission.camera);
       // push video page with given channel name
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ChatPage(
-            // channelName: _channelController.text,
+            // channelName: _channelController,
             role: _role,
           ),
         ),

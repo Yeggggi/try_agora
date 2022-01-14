@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -6,10 +7,12 @@ import 'package:agora_rtc_engine/rtc_engine.dart';
 import 'package:agora_rtc_engine/rtc_local_view.dart' as RtcLocalView;
 import 'package:agora_rtc_engine/rtc_remote_view.dart' as RtcRemoteView;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 
 import 'login.dart';
 import 'colors.dart';
 import 'settings.dart';
+import 'user.dart';
 
 bool isEdit = false;
 TextEditingController _editingController =TextEditingController(text: initialText);
@@ -21,6 +24,7 @@ class ChatPage extends StatefulWidget {
 
   /// non-modifiable client role of the page
   final ClientRole? role;
+  // final String? channelName;
 
   const ChatPage({Key? key, this.role}) : super(key: key);
 
@@ -36,11 +40,19 @@ class _ChatPageState extends State<ChatPage> {
   Color _floatingbuttonColor = TextWeak;
   bool muted = false;
   late RtcEngine _engine;
+  Map<int, Users_Isspeak> _userMap = new Map<int, Users_Isspeak>();
   int _remoteUid = 0;
   bool _joined = false;
   final _users = <int>[];
   final _infoStrings = <String>[];
   int? streamId;
+  int? _localUid;
+  //for token
+  String baseUrl = ''; //Enter the link to your deployed token server over here
+  int uid = 0;
+  late String token;
+
+
 
   @override
   void dispose() {
@@ -78,24 +90,34 @@ class _ChatPageState extends State<ChatPage> {
       });
       return;
     }
-
-
+    // streamId = await _engine.createDataStream(true, true);
     await _initAgoraRtcEngine();
-    streamId = await _engine.createDataStream(true, true);
     _addAgoraEventHandlers();
-    await _engine.enableWebSdkInteroperability(true);
-    VideoEncoderConfiguration configuration = VideoEncoderConfiguration();
-    //configuration.dimensions = VideoDimensions(1920, 1080);
-    await _engine.setVideoEncoderConfiguration(configuration);
-    // await _engine.joinChannel(null, channelName, null, 0);
+    // await getToken();
+    await _engine.joinChannel(Token, channelName, null, 0);
+
+
+    // await _initAgoraRtcEngine();
+    // streamId = await _engine.createDataStream(true, true);
+    // _addAgoraEventHandlers();
+    // await _engine.enableWebSdkInteroperability(true);
+    // VideoEncoderConfiguration configuration = VideoEncoderConfiguration();
+    // //configuration.dimensions = VideoDimensions(1920, 1080);
+    // await _engine.setVideoEncoderConfiguration(configuration);
+    // await _engine.joinChannel(Token, channelName, null, 0);
   }
 
   Future<void> _initAgoraRtcEngine() async {
     _engine = await RtcEngine.create(APP_ID);
     await _engine.enableAudio();
-    await _engine.setChannelProfile(ChannelProfile.LiveBroadcasting);
+    // await _engine.setChannelProfile(ChannelProfile.LiveBroadcasting);
+    // await _engine.enableVideo();
+    await _engine.setChannelProfile(ChannelProfile.Communication);
+
     //만약에 1to1으로 만들려면 LiveBroadcasting이거 대신에 Communication으로 넣으면 일대일이 가능해짐
-    await _engine.setClientRole(ClientRole.Broadcaster);
+    // await _engine.setClientRole(ClientRole.Broadcaster);
+    await _engine.enableAudioVolumeIndication(250, 3, true);
+
   }
 
   @override
@@ -111,6 +133,7 @@ class _ChatPageState extends State<ChatPage> {
           icon: new Icon(Icons.arrow_back_ios_new_rounded),
           color: OnBackground,
           onPressed: () {
+            // _engine.sendStreamMessage(streamId!, "end");
             Navigator.of(context).pop();
             // Navigator.pushNamed(context, '/wait',);
           },
@@ -139,13 +162,13 @@ class _ChatPageState extends State<ChatPage> {
           children: [
             const SizedBox(height: 200),
             FloatingActionButton(
+              onPressed: _onToggleMute,
               backgroundColor: _floatingbuttonColor,
               child: Icon(
-                  Icons.mic
-                //toggle ? Icons.mic : Icons.mic_none,
-                //color: toggle ? _floatingbuttonColor : Primary,
+                muted ? Icons.mic : Icons.mic_none,
+                color: toggle ? _floatingbuttonColor : Primary,
               ),
-              onPressed: _onToggleMute,
+
               // onPressed: () {
               //   setState(() {
               //     toggle = !toggle;
@@ -404,45 +427,115 @@ class _ChatPageState extends State<ChatPage> {
         .update({"text": text}).then((_) {
       print("success!");
     });
+    //is Speaking
+
     // Navigator.pop(context);
   }
 
   Widget _buildAvatar(){
-
-    return Container(
-      width: 58,
-      child: PopupMenuButton(
-        icon: CircleAvatar(
-          backgroundImage: NetworkImage(
-              "https://4.bp.blogspot.com/-Jx21kNqFSTU/UXemtqPhZCI/AAAAAAAAh74/BMGSzpU6F48/s1600/funny-cat-pictures-047-001.jpg"
+    /*return GridView.builder(
+      shrinkWrap: true,
+      itemCount: _userMap.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          childAspectRatio: MediaQuery.of(context).size.height / 1100,
+          crossAxisCount: 2),
+      itemBuilder: (BuildContext context, int index) => Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Container(
+          child: Container(
+              color: Colors.white,
+              child: (_userMap.entries.elementAt(index).key == _localUid)
+                  ? RtcLocalView.SurfaceView()
+                  : RtcRemoteView.SurfaceView(
+                  uid: _userMap.entries.elementAt(index).key)),
+          decoration: BoxDecoration(
+            border: Border.all(
+                color: _userMap.entries.elementAt(index).value.isSpeaking
+                    ? Colors.blue
+                    : Colors.grey,
+                width: 6),
+            borderRadius: BorderRadius.all(
+              Radius.circular(10.0),
+            ),
           ),
-          backgroundColor: Colors.red,
         ),
-        itemBuilder: (BuildContext context) {
-          return [
-            PopupMenuItem<String> (
-              value: '1',
-              child: Text('1'),
-            ),
-            PopupMenuItem<String> (
-              value: '2',
-              child: Text('2'),
-            ),
-          ];
-        },
       ),
+    );*/
+    return GridView.builder(
+      shrinkWrap: true,
+      itemCount: _userMap.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          childAspectRatio: MediaQuery.of(context).size.height / 400,
+          crossAxisCount: 2),
+      itemBuilder: (BuildContext context, int index) => Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Container(
+          child: Column(
+            children: [
+              Container(
+              color: Colors.white,
+            width: 70,
+            child: PopupMenuButton(
+                  icon: Container(
+                    width: 33,
+                    height: 58,
+                    child: _userCircular(),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: _userMap.entries.elementAt(index).value.isSpeaking
+                              ? Colors.blue
+                              : Colors.grey,
+                          width: 4.0),
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(100.0),
+                      ),
+                    ),
+                  ),
+              itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String> (
+                  value: '1',
+                  child: Text('mypage'),
+                ),
+                PopupMenuItem<String> (
+                  value: '2',
+                  child: Text('history'),
+                ),
+              ];
+            },
+            ),
+          // decoration: BoxDecoration(
+          //   border: Border.all(
+          //       color: _userMap.entries.elementAt(index).value.isSpeaking
+          //           ? Colors.blue
+          //           : Colors.grey,
+          //       width: 6),
+          //   borderRadius: BorderRadius.all(
+          //     Radius.circular(10.0),
+          //   ),
+          // ),
+
+        ),
+              Text('$name_user'),
+            ],),
+      ),
+      ),
+    );
+
+  }
+
+  Widget _userCircular(){
+    return CircleAvatar(
+      backgroundImage: NetworkImage(
+          "https://4.bp.blogspot.com/-Jx21kNqFSTU/UXemtqPhZCI/AAAAAAAAh74/BMGSzpU6F48/s1600/funny-cat-pictures-047-001.jpg"
+      ),
+      backgroundColor: Colors.red,
     );
   }
 
   void _onToggleMute() {
     setState(() {
       muted = !muted;
-      if(_floatingbuttonColor == Secondary){
-        _floatingbuttonColor = TextWeak;
-      }
-      else {
-        _floatingbuttonColor = Secondary;
-      }
     });
     _engine.muteLocalAudioStream(muted);
   }
@@ -462,12 +555,15 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           final info = 'onJoinChannel: $channel, uid: $uid';
           _infoStrings.add(info);
+          _localUid = uid;
+          _userMap.addAll({uid: Users_Isspeak(uid, false)});
         });
       },
       leaveChannel: (stats) {
         setState(() {
           _infoStrings.add('onLeaveChannel');
           _users.clear();
+          _userMap.clear();
         });
       },
       userJoined: (uid, elapsed) {
@@ -475,6 +571,7 @@ class _ChatPageState extends State<ChatPage> {
           final info = 'userJoined: $uid';
           _infoStrings.add(info);
           _users.add(uid);
+          _userMap.addAll({uid: Users_Isspeak(uid, false)});
         });
       },
       userOffline: (uid, elapsed) {
@@ -482,6 +579,7 @@ class _ChatPageState extends State<ChatPage> {
           final info = 'userOffline: $uid';
           _infoStrings.add(info);
           _users.remove(uid);
+          _userMap.remove(uid);
         });
       },
       firstRemoteVideoFrame: (uid, width, height, elapsed) {
@@ -490,7 +588,42 @@ class _ChatPageState extends State<ChatPage> {
           _infoStrings.add(info);
         });
       },
+      // tokenPrivilegeWillExpire: (token) async {
+      //   await getToken();
+      //   await _engine.renewToken(token);
+      // },
+        /// Detecting active speaker by using audioVolumeIndication callback
+        audioVolumeIndication: (volumeInfo, v) {
+          volumeInfo.forEach((speaker) {
+            //detecting speaking person whose volume more than 5
+            if (speaker.volume > 5) {
+              try {
+                _userMap.forEach((key, value) {
+                  //Highlighting local user
+                  //In this callback, the local user is represented by an uid of 0.
+                  if ((_localUid?.compareTo(key) == 0) && (speaker.uid == 0)) {
+                    setState(() {
+                      _userMap.update(key, (value) => Users_Isspeak(key, true));
+                    });
+                  }
 
+                  //Highlighting remote user
+                  else if (key.compareTo(speaker.uid) == 0) {
+                    setState(() {
+                      _userMap.update(key, (value) => Users_Isspeak(key, true));
+                    });
+                  } else {
+                    setState(() {
+                      _userMap.update(key, (value) => Users_Isspeak(key, false));
+                    });
+                  }
+                });
+              } catch (error) {
+                print('Error:${error.toString()}');
+              }
+            }
+          });
+        },
         //final String coordinate = "$message";
         // late String first;
         // late String second;
@@ -584,4 +717,26 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  //get token when it expire
+  Future<void> getToken() async {
+    final response = await http.get(
+      Uri.parse(baseUrl +
+          '/rtc/' +
+          channelName +
+          '/publisher/uid/' +
+          uid.toString()
+        // To add expiry time uncomment the below given line with the time in seconds
+        // + '?expiry=45'
+      ),
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        token = response.body;
+        token = jsonDecode(token)['rtcToken'];
+      });
+    } else {
+      print('Failed to fetch the token');
+    }
+  }
 }
