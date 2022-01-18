@@ -1,8 +1,8 @@
 # try_agora
 
-A new Flutter project.
+exercise agora project.
 
-## Getting Started
+## just exercise about agora
 
 This project is a starting point for a Flutter application.
 
